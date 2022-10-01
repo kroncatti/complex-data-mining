@@ -1,0 +1,264 @@
+---
+title:  INF0613 -- Aprendizado de Máquina Não Supervisionado
+output: pdf_document
+subtitle: Trabalho 2 - Redução de Dimensionalidade
+author: 
+  - Kaleb Roncatti de Souza
+  - Nelson Gomes Brasil Junior
+---
+
+<!-- !!!!! Atenção !!!!! -->
+<!-- Antes de fazer qualquer alteração neste arquivo, reabra-o com 
+o encoding correto: 
+File > Reopen with encoding > UTF-8
+-->
+
+
+
+
+
+
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = FALSE, message = FALSE, warning = FALSE, tidy = FALSE)
+options(digits = 3)
+```
+
+
+
+
+O objetivo deste trabalho é exercitar o conhecimento de técnicas de redução de dimensionalidade. Essas técnicas serão usadas tanto para obtenção de características quanto para visualização dos conjuntos de dados. 
+Usaremos a base de dados `speech.csv`, que está disponível na página da disciplina no Moodle. A base contém amostras da pronúncia em inglês das letras do alfabeto.
+
+# Atividade 0 -- Configurando o ambiente
+Antes de começar a implementação do seu trabalho configure o _workspace_ e importe todos os pacotes e execute o preprocessamento da base:
+
+```{r atv0-code}
+# Adicione os demais pacotes usados neste trabalho:
+
+
+# Configure ambiente de trabalho na mesma pasta 
+# onde colocou a base de dados:
+# setwd("")
+
+# Pré-processamento da base de dados
+# Lendo a base de dados
+speech <- read.csv("speech.csv", header = TRUE)
+
+# Convertendo a coluna 618 em characteres 
+speech$LETRA <- LETTERS[speech$LETRA]
+
+```
+
+
+
+# Atividade 1 -- Análise de Componentes Principais (*3,5 pts*)
+
+Durante a redução de dimensionalidade, espera-se que o poder de representação do conjunto de dados seja mantido, para isso é preciso realizar uma análise da variância mantida em cada componente principal obtido. Use função  `prcomp`, que foi vista em aula, para criar os autovetores e autovalores da base de dados. Não use a normalização dos atributos, isto é, defina  `scale.=FALSE`. 
+Em seguida, use o comando `summary`, analise o resultado e os itens a seguir:
+
+
+<!-- Use o comando: options(max.print=2000) para visualizar o resultado 
+do comando summary e fazer suas análises. Não é necessário que toda informação 
+do comando summary apareça no PDF a ser submetido. Desse modo, repita o comando 
+com um valor mais baixo antes de gerar a versão final do PDF. -->
+
+```{r atv1-code}
+options(max.print=2000)
+# Inspecionando o conjunto de dados
+dim(speech)
+
+# Executando a redução de dimensionalidade com o prcomp
+speech.pca1 <- prcomp(speech[, 1:617], scale=FALSE)
+
+# Analisando as componentes com o comando summary
+
+summary(speech.pca1)
+
+
+```
+
+## Análise
+
+a) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `80%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+Observando-se o valor da variância acumulada apresentada no sumário pós aplicação do método de PCA, conseguimos perceber que com a partir de 38 componentes, conseguimos explicar 80.30\% da variância do conjunto de dados. 
+
+<!-- Fim da resposta -->
+
+b) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `90%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Observando-se o valor da variância acumulada apresentada no sumário pós aplicação do método de PCA, conseguimos perceber que com a partir de 91 componentes, conseguimos explicar 90.00\% da variância do conjunto de dados. 
+
+<!-- Fim da resposta -->
+
+c) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `95%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Através do valor da variância acumulada apresentada no sumário pós aplicação do método de PCA, conseguimos perceber que com a partir de 170 componentes, conseguimos explicar 90.00\% da variância do conjunto de dados. 
+
+<!-- Fim da resposta -->
+
+d) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `99%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Através do valor da variância acumulada apresentada no sumário pós aplicação do método de PCA, conseguimos perceber que com a partir de 382 componentes, conseguimos explicar 90.00\% da variância do conjunto de dados. 
+
+<!-- Fim da resposta -->
+
+e) Faça um breve resumo dos resultados dos itens *a)-d)* destacando o impacto da redução de dimensionalidade. 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Basicamente, o método da PCA funciona da seguinte maneira: realizamos a rotação dos eixos originais (n-dimensional para n features) e, encontramos através de combinações destas features antigas, features que buscam maximizar a variância/spread dos nossos dados e minimizam a distância dos pontos à estes eixos rodados (minizam o erro). Sabemos que o método da PCA pode ser derivado através de múltiplas formas. No caso da utilização do método \texttt{prcomp}, estamos obtendo as componentes principais através do \textit{single Value Decomposition (SVD)} para realizar a redução da dimensionalidade, método que separa o nosso conjunto em três matrizes com propriedades específicas que multiplicadas entre si retornam o nosso conjunto inicial.
+
+No que diz respeito aos dados acima, conseguimos ver que, 6.15\% do total de features (38 features de 617) já explicam aproximadamente 80\% da variância/spread dos nossos dados. 14.7\% (91 features de 617) das features explica 90\% do spread e 27.5\% (170 features de 617) explica 95\% da variãncia/spread do nosso conjunto e assim sucessivamente. Estes resultados são EXTREMAMENTE interesssantes, e significam que, por exemplo, se escolhêssemos usar as 170 primeiras features ao invés de usar todas as 617, já explicaríamos quase toda a variância dos nossos dados, ou seja, teríamos uma perda de informação de apenas 5\% dos dados sendo :
+
+\begin{itemize}
+\item Estaríamos diminuindo a dificuldade computacional de aplicar modelos, dado que quanto maior o número de features mais custoso se torna tratar/prever em cima dos dados
+\item Potencialmente, poderíamos reduzir o fenômeno de overfitting causado por muitas features que possuem forte correlação/dependência entre si
+\end{itemize}
+
+<!-- Fim da resposta -->
+
+# Atividade 2 -- Análise de Componentes Principais e Normalização (*3,5 pts*)
+
+A normalização de dados em alguns casos, pode trazer benefícios. Nesta questão, iremos analisar o impacto dessa prática na redução da dimensionalidade da base de dados `speech.csv`. Use função  `prcomp` para criar os autovetores e autovalores da base de dados usando a normalização dos atributos, isto é, defina `scale.=TRUE`. 
+Em seguida, use o comando `summary`, analise o resultado e os itens a seguir:
+
+```{r atv2-code}
+
+speech.pca2 <- prcomp(speech[, 1:617], scale=TRUE)
+
+# Analisando as componentes com o comando summary
+
+summary(speech.pca2)
+
+```
+
+## Análise
+
+a) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `80%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+Observando-se o valor da variância acumulada apresentada no sumário pós aplicação do método de PCA, conseguimos perceber que com a partir de 48 componentes, conseguimos explicar 80.02\% da variância do conjunto de dados. 
+
+<!-- Fim da resposta -->
+
+b) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `90%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+Observando-se o valor da variância acumulada apresentada no sumário pós aplicação do método de PCA, conseguimos perceber que com a partir de 112 componentes, conseguimos explicar 90.04\% da variância do conjunto de dados. 
+
+<!-- Fim da resposta -->
+
+c) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `95%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+Observando-se o valor da variância acumulada apresentada no sumário pós aplicação do método de PCA, conseguimos perceber que com a partir de 200 componentes, conseguimos explicar 95.00\% da variância do conjunto de dados. 
+
+<!-- Fim da resposta -->
+
+d) Qual o menor número de componentes, tal que a variância acumulada seja pelo menos `99%` do total? 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+Observando-se o valor da variância acumulada apresentada no sumário pós aplicação do método de PCA, conseguimos perceber que com a partir de 400 componentes, conseguimos explicar 99.00\% da variância do conjunto de dados. 
+
+<!-- Fim da resposta -->
+
+e) Quais as principais diferenças entre a aplicação do PCA nesse conjunto dados com e sem normalização?
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+Quando aplicamos a normalização, além de subtraírmos a média (passo necessário para a PCA seja com/sem normalização, isto é, \texttt{scale=TRUE or scale=FALSE}), dividimos cada um dos atributos pelo desvio padrão dos valores daquele atributo. 
+
+<!-- Fim da resposta -->
+
+f) Qual opção parece ser mais adequada para esse conjunto de dados? Justifique sua resposta. 
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+Para o conjunto acima, a aplicação da \texttt{PCA} \textbf{sem} normalização se mostrou como melhor técnica para a redução de dimensionalidade do nosso dataset, dado que, para valores de variância acumulada fixos, em todos os casos (80\%, 90\%, 95\%, 99\%), o conjunto sem normalização foi capaz de explicar a mesma variância com menos features. 
+
+Ademais, se analisarmos por exemplo o conjunto de dados em algumas colunas tais como \texttt{speech$V347} verificaremos que os valores de tal feature são muito próximos entre si, e o valor do scaling com normalização de tal feature poderia ser calculado da seguinte forma: \texttt{(speech\$V347 - mean(speech\$V347))/sd(speech\$V347)}. Neste caso, nem todos os atributos possuem valores iguais, mas caso tivessem, a normalização seria problemática dado que o desvio padrão seria zero.
+<!-- Fim da resposta -->
+
+
+# Atividade 3 -- Visualização a partir da Redução (*3,0 pts*)
+
+Nesta atividade, vamos aplicar diferentes métodos de redução de dimensionalidade e comparar as visualizações dos dados obtidos considerando apenas duas dimensões. Lembre de fixar uma semente antes de executar o T-SNE.
+
+a) Aplique a redução de dimensionalidade com a técnica PCA e gere um gráfico de dispersão dos dados. Use a coluna `618` para classificar as amostras e definir uma coloração. 
+
+```{r atv3a-code}
+
+colors <- rainbow(length(unique(as.factor(speech$LETRA))))
+
+# Aplicando redução de dimensionalidade com a técnica PCA
+speech.pca1 <- prcomp(speech[, 1:617], scale=FALSE)
+
+# Gerando o gráfico de dispersão
+plot(speech.pca1$x[, 1:2], t = 'n', main="", 
+     xlab = "Component 1", ylab = "Component 2")
+text(speech.pca1$x[, 1:2], labels = as.factor(speech$LETRA),
+     col=colors[as.factor(speech$LETRA)], cex =0.9)
+
+```
+
+b) Aplique a redução de dimensionalidade com a técnica UMAP e gere um gráfico de dispersão dos dados. Use a coluna `618` para classificar as amostras e definir uma coloração. 
+
+```{r atv3b-code}
+library(umap)
+set.seed(31)
+
+# Aplicando redução de dimensionalidade com a técnica UMAP
+speech.umap <- umap(as.matrix(speech[, 1:617]))
+
+# Gerando o gráfico de dispersão
+plot(speech.umap$layout, t = 'n', main="", 
+     xlab = "Dimension 1", ylab = "Dimension 2")
+text(speech.umap$layout, labels = as.factor(speech$LETRA),
+     col=colors[as.factor(speech$LETRA)], cex =0.9)
+
+```
+
+c) Aplique a redução de dimensionalidade com a técnica T-SNE e gere um gráfico de dispersão dos dados. Use a coluna `618` para classificar as amostras e definir uma coloração. 
+
+```{r atv3c-code}
+library(Rtsne)
+set.seed(31)
+
+# Aplicando redução de dimensionalidade com a técnica T-SNE
+
+# Verificando a unicidade dos dados antes de qualquer coisa
+dim(speech)
+unique_speech <- unique(speech)
+dim(unique_speech)
+
+tsne <- Rtsne(as.matrix(unique_speech[, 1:617]), perplexity = 30, dims = 3)
+
+# Gerando o gráfico de dispersão
+plot(tsne$Y, t = 'n', main="", 
+     xlab = "Dimension 1", ylab = "Dimension 2")
+text(tsne$Y, labels = as.factor(speech$LETRA),
+     col=colors[as.factor(speech$LETRA)], cex =0.9)
+
+```
+
+
+## Análise
+
+d) Qual técnica você acredita que apresentou a melhor projeção? Justifique.
+
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+
+Analisando apenas visualmente o resultado dos três modelos distintos em duas dimensões, imaginamos que o objetivo seria encontrar \textit{clusters} que nos permitiriam classificá-los caso usássemos algum modelo de clusterização não supervisionado tal como \texttt{K-Means Clustering}. Na situação vigente, possuímos o label e conseguímos dizer visualmente qual modelo melhor separou as aglomerações de \texttt{LETTERS}.
+
+<!-- Fim da resposta -->
+

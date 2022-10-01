@@ -1,0 +1,331 @@
+---
+title: INF0613 -- Aprendizado de Máquina Não Supervisionado
+output: pdf_document
+subtitle: Trabalho 3 - Técnicas de Agrupamento
+author: 
+  - Kaleb Roncatti de Souza
+  - Nelson Gomes Brasil Junior
+---
+
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = FALSE, message = FALSE, warning = FALSE, tidy = FALSE)
+options(digits = 3)
+```
+
+
+O objetivo deste trabalho é exercitar o uso de algoritmos de agrupamento. Neste trabalho, vamos analisar diferentes atributos de carros com o objetivo de verificar se seus atributos são suficientes para indicar um valor de risco de seguro. O conjunto de dados já apresenta o risco calculado no campo `symboling` indicado na Tabela 1. Quanto mais próximo de 3, maior o risco. O conjunto de dados que deve ser usado está disponível na página do Moodle com o nome `imports-85.data`.
+
+# Atividade 0 -- Configurando o ambiente
+Antes de começar a implementação do seu trabalho configure o _workspace_ e importe todos os pacotes e execute o preprocessamento da base:
+
+```{r atv0-code}
+# Adicione os pacotes usados neste trabalho:
+library(dplyr)
+library(corrplot)
+library(caret)
+library(factoextra)
+library(dbscan)
+library (cluster)
+library(NbClust)
+# Configure ambiente de trabalho na mesma pasta 
+# onde colocou a base de dados:
+# setwd("")
+set.seed(30)
+
+
+```
+
+
+
+# Atividade 1 -- Análise e Preparação dos Dados
+
+O conjunto de dados é composto por 205 amostras com 26 atributos cada descritos na Tabela 1. Os atributos são dos tipos `factor`, `integer` ou  `numeric`. O objetivo desta etapa é a análise e preparação desses dados de forma a ser possível agrupá-los nas próximas atividades. 
+
+**Implementações:** Nos itens a seguir você implementará a leitura da base e aplicará tratamentos básicos.
+
+a) *Tratamento de dados Incompletos:* Amostras incompletas deverão ser tratadas, e você deve escolher a forma que achar mais adequada. Considere como uma amostra incompleta uma linha na qual faltam dados em alguma das colunas selecionadas anteriormente. Note que, dados faltantes nas amostras podem causar uma conversão do tipo do atributo de todas as amostras e isso pode impactar no item b). 
+
+```{r atv1a-code}
+# Leitura da base
+cars <- read.csv("imports-85.data", header = FALSE)
+summary(cars)
+# Tratamento de dados faltantes
+
+# Visualizando elementos básicos
+dim(cars)
+head(cars, 5)
+
+# Verificando se existem dados faltantes
+cars[cars == "?"] <- NA
+nas_count <- sapply(cars, function(x) sum(is.na(x))); nas_count
+
+# Percebemos que uma das variáveis com dados faltantes é categórica
+subset(cars, is.na(cars$V6))
+# O conjunto é extremamente baixo, podemos remover os dados sem prejuízo
+cars <- cars[-c(28, 64), ]
+nrow(subset(cars, is.na(cars$V6)))
+
+# Percebemos também que algumas features que são numéricas vieram como string
+features_numeric_as_str <- c(2, 19, 20, 22, 23, 26)
+cars[, features_numeric_as_str] <- sapply(cars[, features_numeric_as_str], as.numeric)
+
+# Preenchendo os dados faltantes com a média dos valores que possuímos
+cars <- lapply(cars, function(x) ifelse(is.na(x), mean(x, na.rm = TRUE), x))
+cars <- as.data.frame(cars)
+# Verificando que de fato não temos mais NAs
+nas_count <- sapply(cars, function(x) sum(is.na(x))); nas_count
+```
+
+b) *Seleção de Atributos:* Atributos não-numéricos não podem ser usados com as técnicas  agrupamento vistas em aula. Portanto, você deve selecionar um conjunto de atributos numéricos que serão usados para o agrupamento. Além disso você deve analisar se os atributos não-numéricos são descritivos para a realização dos agrupamentos. Caso um dos atributos não numéricos seja necessário, use a técnica do  *one hot encoding* para transformá-lo em numérico. **Não** aplique essa técnica nos atributos `symboling` e `make` para os agrupamentos subsequentes, eles não devem fazer parte do agrupamento. 
+
+```{r atv1b-code}
+# Seleção de atributos
+head(cars, 5)
+
+cars_target <- cars[, 1]
+
+# Olhando para as features numéricas EXCETO target
+num_features <- unlist(lapply(cars, is.numeric), use.names = FALSE)
+cars_num <- cars[, num_features]
+
+# Removendo o target
+cars_num$V1 <- NULL
+
+# Aplicando a correlação
+correlacao <- cor(cars_num[, colnames(cars_num)])
+corrplot(correlacao, method = "color", type = "upper")
+
+# Encontrando elementos com correlação absoluta superior a um valor
+correlacao_freq <- as.data.frame(as.table(correlacao))
+relevant_corr <- subset(correlacao_freq, (abs(Freq) > 0.87 & abs(Freq) != 1.0))
+relevant_corr <- relevant_corr[order(-relevant_corr$Freq),]
+relevant_corr
+
+# Removendo features com alta correlação entre si, trariam possíveis redundâncias para o modelo
+cars_num$V25 <- NULL
+cars_num$V11 <- NULL
+
+# Usando one-hot encoding para algumas variáveis categóricas
+dummy <- dummyVars(~ V4 + V5 + V7 + V8 + V9 + V16, data = cars)
+cars_cat <- predict(dummy, newdata = cars)
+
+# Features que serão utilizadas
+cars_mut_features <- cbind(cars_num, cars_cat)
+dim(cars_mut_features)
+
+```
+
+## Análises
+
+Após as implementações escreva uma análise da base de dados. Em especial, descreva o conjunto de dados inicial, relate como foi realizado o tratamento, liste quais os atributos escolhidos para manter na base e descreva a base de dados após os tratamentos listados. Explique todos os passos executados, mas sem copiar códigos na análise. Além disso justifique suas escolhas de tratamento nos dados faltantes e seleção de atributos.
+
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Começamos todo o tratamento através de uma observação das entradas do conjunto de dados. Percebemos que, ao invés de \texttt{NA (Not a Number)} para os dados faltantes, tínhamos elementos com pontos de interrogação \texttt{(?)} para tais casos. Fizemos a conversão das interrogações para o tipo \texttt{(NA)} e contabilizamos a quantidade de elementos faltantes por feature. Para apenas uma delas (Coluna \texttt{(V6)}), tínhamos dados não-númericos, e apenas dois dados sem preenchimento. Neste caso, optamos por remover tais dados.
+
+Percebemos também que, devido às interrogações observadas já no início, algumas colunas com dados do tipo \texttt{numeric} vieram do carregamento inicial como \texttt{String} e fizemos então a conversão para conseguirmos prosseguir de maneira coerente (colunas \texttt{V2, V19, V20, V22, V23 e V26}. Logo após, optamos por preencher todos os dados faltantes das features numéricas com o valor da média de tal feature, técnica explicada e utilizada em aula para não termos que descartar um conjunto bastante relevante de dados. Sendo assim, finalizamos o tratamento inicial da base de dados tendo removido alguns dados faltantes e tendo preenchido outros com a métrica de média, também modificando o tipo de dados para o tipo adequado.
+
+Desta forma, inicializamos o estudo de features pelas features exclusivamente numéricas. Plotamos o grau de correlação dentre todas as features (note que não incluímos o target \texttt{V1 - symboling}), observamos visualmente, e decidimos definir um threshold para deixarmos de lado apenas algumas features que apresentam altíssimo grau de correlação entre si. Nesta situação, utilizamos \texttt{0.87} de correlação absoluta para as features numéricas como valor de trigger para deixarmos features de lado. Percebemos que o maior grau de correlação disparado foi entre as colunas \texttt{V24 (city-mpg) e V25 (highway-mpg)}, métricas que dizem respeito ao consumo de combustível dos veículos na cidade e na estrada, respectivamente. Optamos então por desprezar a feature \texttt{V25 (highway-mpg)}. Também com um grau de correlação alto temos as features \texttt{V11 (length) e V14 (curb-weight)}, das quais optamos por desprezar a feature  \texttt{V11 (length)}, dado que a mesma também possue alto grau de correlação com a feature \texttt{V10 (wheel-base)}.
+
+No que diz respeito às features categóricas, aplicamos o método de one-hot encoding em algumas features categóricas escolhidas, dentre elas: \texttt{V4, V5, V7, V8, V9 e V16}. Infelizmente, não tínhamos acesso à um especialista no ramo para realizarmos um inquérito no que diz respeito às features mais importantes para a aplicação de modelos de clusterização. Desta forma, testamos algumas combinações manualmente (também se baseando na intuição para quais variáveis teriam a maior influência para a previsão de risco de um seguro) e chegamos à conclusão que as features acima se demonstraram mais relevantes para a aplicação dos métodos subsequentes. Uma possível melhoria à nossa análise seria sistematizar a realização de combinações de features e da clusterização, observando-se, por exemplo, a soma das distâncias intra-cluster para \texttt{K} fixo conforme varíamos as features utilizadas.
+Desta maneira, partimos de um conjunto com 205 dados e 25 features e finalizamos com 203 dados e 37 features.
+
+<!-- Fim da resposta -->
+
+
+# Atividade 2 -- Agrupamento com o $K$*-means*
+
+Nesta atividade, você deverá agrupar os dados com o algoritmo $K$*-means* e utilizará duas métricas básicas para a escolha do melhor $K$: a soma de distâncias intra-cluster e o coeficiente de silhueta. 
+
+**Implementações:** Nos itens a seguir você implementará a geração de gráficos para a análise das distâncias intra-cluster e do coeficiente de silhueta. Em seguida, você implementará o agrupamento dos dados processados na atividade anterior com o algoritmo $K$*-means* utilizando o valor de $K$ escolhido.  
+
+a) *Gráfico \textsl{Elbow Curve}:* Construa um gráfico com a soma das distâncias intra-cluster para $K$ variando de $2$ a $30$.
+
+```{r atv2a-code}
+# Construindo um gráfico com as distâncias intra-cluster
+df_intra_cluster <- data.frame(matrix(ncol = 2, nrow = 0))
+colnames(df_intra_cluster) <- c("k", "Sum of squared within-cluster")
+
+row_num <- 1
+for (k in 2:50){
+  km <- kmeans(cars_mut_features, centers = k)
+  
+  df_intra_cluster[row_num,] <- c(k, sum(km$withinss))
+  row_num <- row_num + 1
+}
+
+plot(df_intra_cluster) + lines(df_intra_cluster)
+
+```
+
+b) *Gráfico da Silhueta:* Construa um gráfico com o valor da silhueta para $K$ variando de $2$ a $30$.
+
+```{r atv2b-code}
+# Construindo um gráfico com os valores da silhueta
+df_sl <- data.frame(matrix(ncol = 2, nrow = 0))
+colnames(df_sl) <- c("k", "Avg Silhouette width")
+diss_features <- daisy(cars_mut_features)
+
+row_num <- 1
+for (k in 2:30){
+  km <- kmeans(cars_mut_features, centers = k)
+  sil <-silhouette(km$cl, diss_features)
+  # Média da width da silhouetta
+  df_sl[row_num,] <- c(k, mean(sil[, 3]))
+  row_num <- row_num + 1
+}
+
+plot(df_sl) + lines(df_sl)
+
+```
+
+c) *Escolha do $K$:* Avalie os gráficos gerados nos itens anteriores e escolha o melhor valor  de $K$ com base nas informações desses gráficos e na sua análise. Se desejar, use também a função `NbClust` para ajudar nas análises. Com o valor de $K$ definido, utilize o rótulo obtido para cada amostra, indicando o grupo ao qual ela pertence, para gerar um gráfico de dispersão (atribuindo cores diferentes para cada grupo).
+
+```{r atv2c-code}
+# Aplicando o k-means com o k escolhido 
+km_final <- kmeans(cars_mut_features, centers = 6)
+# Construindo um gráfico de dispersão (para standardise = TRUE and FALSE)
+fviz_cluster(km_final, data = cars_mut_features, stand = FALSE, ellipse = TRUE)
+fviz_cluster(km_final, data = cars_mut_features, stand = TRUE, ellipse = TRUE)
+
+```
+
+## Análises
+
+Descreva cada um dos gráficos gerados nos itens acima e analise-os. Inclua na sua análise as informações mais importantes que podemos retirar desses gráficos. Discuta sobre a escolha do valor $K$ e sobre a apresentação dos dados no gráfico de dispersão. 
+
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+No que diz respeito aos gráficos gerados:
+\begin{itemize}
+\item A soma dos quadrados da distância intra-cluster nos ajudou a orientar o ponto ótimo de clusters para que possamos prosseguir com os modelos. Nosso objetivo é definir clusters de modo que a variação total intra-cluster seja minimizada. No caso vigente, conseguimos visualizar que, em K = 6 temos um começo de estabilização da curva, ou seja, a partir de tal K, o valor da distância deixa de diminuir e temos o começo de uma assíntota.
+\item Para o caso da silhoueta, método para o qual tentamos determinar quão bem cada objeto se situa dentro do seu próprio cluster. Um alto valor de width indica uma boa clusterização. Para tal gráfico, percebemos que o K que escolhemos como ótimo dado o método anterior se mostra como o quarto/quinto valor mais elevado para tal width. De toda forma, optamos por focar/valorizar mais o primeiro método porque, mesmo para o K escolhido no método elbow, o valor de silhueta ainda se representa como um valor razoável.
+
+\item Apenas completando, para o gráfico de dispersão, observamos que a clusterização se demonstrou relativamente boa quando observamos a PCA não normalizada com detrimento à PCA normalizada. Com a PCA não normalizada, aproximadamente 99.9\% da variância do conjunto é explicada pelas duas componentes principais, e para o caso da normalizada, menos de 40\% da variância do conjunto é explicada. Visualmente falando, os clusters estão muito melhor separados quando observamos a PCA não normalizada. Pelo menos a nível visual, a técnica K-means se demonstrou adequada para a separação do conjunto.
+
+\end{itemize}
+
+Para uma melhora no desempenho do método acima, poderíamos ter feito uma escolha mais rigorosa e sistemática de features que implicariam numa performance mais adequada para os conjuntos.
+
+
+
+<!-- Fim da resposta -->
+
+# Atividade 3 -- Agrupamento com o *DBscan*
+
+Nesta atividade, você deverá agrupar os dados com o algoritmo *DBscan*. Para isso será necessário experimentar com diferentes valores de *eps* e *minPts*. 
+
+a) *Ajuste de Parâmetros:* Experimente com valores diferentes para os parâmetros *eps* e *minPts*. Verifique o impacto dos diferentes valores nos agrupamentos.
+
+```{r atv3a-code}
+# Experimento com valores de eps e minPts
+db_01 <- dbscan::dbscan(cars_mut_features, eps = 500, minPts = 3)
+print(db_01)
+
+# Experimento com valores de eps e minPts
+db_02 <- dbscan::dbscan(cars_mut_features, eps = 700, minPts = 3)
+print(db_02)
+# Experimento com valores de eps e minPts
+db_03 <- dbscan::dbscan(cars_mut_features, eps = 500, minPts = 4)
+print(db_03)
+
+```
+
+b) *Determinando Ruídos:* Escolha o valor de *minPts* que obteve o melhor resultado no item anterior e use a função `kNNdistplot` do pacote `dbscan` para determinar o melhor valor de *eps* para esse valor de *minPts*. Lembre-se que o objetivo não é remover todos os ruídos. 
+
+```{r atv3b-code}
+# Encontrando o melhor eps com o kNNdistplot
+dbscan::kNNdistplot(cars_mut_features, k = 3) + abline(h = 1350, col="lightblue")
+
+```
+
+c) *Visualizando os Grupos:* Após a escolha dos parâmetros *eps* e *minPts*, utilize o rótulo obtido para cada amostra, indicando o grupo ao qual ela pertence, para gerar um gráfico de dispersão (atribuindo cores diferentes para cada grupo).
+
+```{r atv3c-code}
+# Aplicando o DBscan com os parâmetros escolhidos
+db_final <- dbscan::dbscan(cars_mut_features, eps = 1350, minPts = 3)
+print(db_final)
+# Construindo um gráfico de dispersão com stardadize = TRUE and FALSE
+fviz_cluster(db_final , data = cars_mut_features, stand = FALSE, 
+             ellipse = TRUE, show.clust.cent = FALSE,
+             geom = "point", palette = "jco",
+             ggtheme = theme_classic())
+
+fviz_cluster(db_final , data = cars_mut_features, stand = TRUE, 
+             ellipse = TRUE, show.clust.cent = FALSE,
+             geom = "point", palette = "jco",
+             ggtheme = theme_classic())
+
+```
+
+## Análises
+
+Descreva os experimentos feitos para a escolha dos parâmetros *eps* e *minPts*. Inclua na sua análise as informações mais importantes que podemos retirar dos gráficos gerados. Justifique a escolha dos valores dos parâmetros e analise a apresentação dos dados no gráfico de dispersão. 
+
+
+**Resposta:** <!-- Escreva sua resposta abaixo -->
+Para a escolha dos parâmetros, começando testando valores próximos dos sugeridos em aula para \texttt{MinPts} começando entre 4 e 5, e percebemos que valores entre 3 e 4 estavam gerando números de clusters razoavelmente próximos do valor correto que esperamos (7 labels). Além do mais, nosso dataset possui um valor de aproximadamente 200/300 amostras, e o parâmetro \texttt{MinPts} representa o mínimo de pontos necessários para gerar um cluster. Se este valor é muito elevado, não teremos o número de clusters o suficiente para o problema em questão.
+
+Assim sendo, fixamos tal valor e plotamos o gráfico \texttt{kNNdistplot} para encontrarmos o valor ideal de \texttt{eps} a nível teórico. Tal gráfico nos mostra um ponto de inflexão (cotovelo) para o qual a distância do k-ésimo vizinho começa a aumentar, ponto para o qual o valor de eps é ótimo.
+
+Para o gráfico de dispersão, geramos dois gráficos com \texttt{standardize = FALSE e TRUE} assim como fizemos para o K-means. Nesta técnica, percebemos que o encontro de clusters não se mostrou satisfatório para nenhum dos conjuntos, mesmo com a PCA não normalizada que, a priori, separou bem o conjunto de dados em duas dimensões.
+
+<!-- Fim da resposta -->
+
+# Atividade 4 -- Comparando os Algoritmos
+
+<!-- Use o espaço abaixo para escrever os códigos necessários 
+	para responder as perguntas a seguir  -->
+
+```{r atv4-code}
+
+# Observando a classificação e o target correto
+unclass(table(km_final$cluster, cars_target))
+
+```
+
+Com base nas atividades anteriores, faça uma conclusão dos seus experimentos respondendo às seguintes perguntas: 
+
+a) Qual dos métodos apresentou melhores resultados? Justifique.
+
+b) Quantos agrupamentos foram obtidos?
+
+c) Analisando o campo `symboling` e o grupo designado para cada amostra, os agrupamentos conseguiram separar os níveis de risco?
+
+d) Analisando o campo `make` que contém as marcas dos carros, os agrupamentos conseguiram separar as marcas?
+
+
+**Respostas:** <!-- Escreva sua resposta abaixo -->
+a) O método que apresentou melhor resultado dentre os métodos aplicados foi o método \texttt{K-means} clustering, dado que o mesmo chegou num valor ideal de clusters próximo ao necessário para explicar o valor de `symboling` apresentado pelo enunciado. No entanto, pelo que observamos do dataset fornecido, o enunciado está equivocado no que diz respeito aos valores de `symboling`: pelo que observamos, o valor mais baixo é de -2 ao invés de -3, ou seja, 6 labels ao invés de 7 como foi apresentado pelo exercício. Desta maneira, vemos que o K-means para K = 6 como K ideal se mostrou como o valor exato de labels para previsão do conjunto. Ademais, é possível concluir visualmente que existem clusters bem definidos (PCA não normalizada) para K-means enquanto a visualização para o DBSCAN se mostra bem ruim, demostrando claramente que a técnica não foi capaz de separar os dados. Conceitualmente falando, a técnica DBSCAN funciona bem quando temos ruído e quando os grupos que precisam ser gerados possuem diferentes formatos e tamanho. Similarmente, tal técnica não costuma funcionar bem quando temos densidades variáveis e alta dimensionalidade. Na nossa situação vigente:
+
+\begin{itemize}
+\item Temos pouco ruído (ponto que prejudica DBSCAN)
+\item O formato dos dados (ao menos na decomposição PCA) se mostra aproximadamente o mesmo (ponto que prejudica DBSCAN)
+\item Temos densidades variáveis (ponto que prejudica DBSCAN)
+\item Temos alta dimensionalidade (ponto que prejudica DBSCAN)
+\end{itemize}
+
+Desta maneira, todos os pontos evidenciados acima podem ter causado uma performance ruim para o método DBSCAN.
+
+b) Foram obtidos 7 agrupamentos na escolha do parâmetro ótimo utilizando-se o \texttt{elbow method}. 
+
+c) Analisando-se o campo `symboling`, e comparando-se os resultados da clusterização com o label obtido, observa-se que:
+
+\begin{itemize}
+\item Para symboling = -2, de um total de 3 amostras, 2 amostras foram classificadas no \texttt{cluster 5} e 1 amostra
+\item Para symboling = -1, de um total de 22 amostras, os \texttt{clusters 5 e 6} se demonstraram como os maiores agrupadores
+\item Para symboling = 0, de um total de 66 amostras, os \texttt{clusters 3 e 6} se demonstraram como os maiores agrupadores
+\item Para symboling = 1, de um total de 53 amostras, o \texttt{cluster 1} se demonstrou como o maior agrupador
+\item Para symboling = 2, de um total de 32 amostras, os \texttt{clusters 1 e 6} se demonstraram como os maiores agrupadores
+\item Para symboling = 3, de um total de 27 amostras, os \texttt{clusters 3 e 5} se demonstraram como os maiores agrupadores
+\end{itemize}
+
+Desta forma, mesmo que a clusterização visual utilizando PCA e nossas features se mostre como adequada, os atributos utilizados não parecem se demonstrar suficientes para a previsão de um valor de risco de seguro, dado que, mesmo que bem separados, temos os dados separados em diferentes clusters para um valor de K fixado.
+
+d) 
+<!-- Fim da resposta -->
+
+
+
+
