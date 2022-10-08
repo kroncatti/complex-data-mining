@@ -1,4 +1,4 @@
-# complex-data-mining :pick: :scroll:	
+# complex-data-mining :scroll: :pick:	
 
 
 <p align="center">
