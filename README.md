@@ -1,4 +1,5 @@
-# complex-data-mining :open_book:
+
+![alt text](https://www.ic.unicamp.br/~mdc/images/fractal.png)
 
 complex-data-mining is a repository for projects from the course: [Complex Data Mining](https://www.ic.unicamp.br/~mdc/), an applied course in Data Mining, Data Science, Machine Learning/Deep Learning techniques and Data visualization. 
 
