@@ -15,6 +15,8 @@ To run it locally, you must clone the directory and have an [Anaconda](https://w
 
 ## Main disciplines :blue_book: :closed_book:
 
-- :star2: **Supervised and Unsupervised Machine Learning**: Hyperparameter optimization, Ensemble methods, Cross validation, Unbalance, diagnosis of bias and variance, Assessment measures, Model interpretation (X-AI) and open-set classification. Detection of anomalies, Dimensionality reduction, Attribute selection, Grouping techniques
-- :star2: **Deep Learning**: Image processing techniques, CNN, RNN, GANs, DCGANs and transfers learning
-- :star2: **Big Data and Information Visualization**: Introduction to parallel and distributed computing (Spark and Hadoop). Visualization of information with dashboards built in PBI and Tableau
+:star2: **Supervised and Unsupervised Machine Learning**: Hyperparameter optimization, Ensemble methods, Cross validation, Unbalance, diagnosis of bias and variance, Assessment measures, Model interpretation (X-AI) and open-set classification. Detection of anomalies, Dimensionality reduction, Attribute selection, Grouping techniques
+
+:star2: **Deep Learning**: Image processing techniques, CNNs, RNNs, GANs, DCGANs and Transfer Learning using `Python` along with `TensorFlow`
+
+:star2: **Big Data and Information Visualization**: Introduction to parallel and distributed computing (`Spark` and `Hadoop`). Visualization of information with dashboards built in PBI and Tableau.
